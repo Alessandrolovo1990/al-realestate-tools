@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulatore IVA agevolata — Interventi edilizi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#FBF3EA;
+    --paper-deep:#F5E8D8;
+    --line:#C9B8A8;
+    --line-soft:#DDD0C0;
+    --ink:#2A1A0E;
+    --ink-soft:#6B5040;
+    --blue:#1B4F6B;
+    --blue-soft:#E0EAEE;
+    --blue-deep:#123A4F;
+    --stamp:#8B1A10;
+    --ok:#3D6B49;
+    --ok-soft:#DEEAE0;
+    --warn:#A8742A;
+    --warn-soft:#F0E5D0;
+    --bad:#A8392B;
+    --bad-soft:#F2DDD7;
+    --muted:#7A6050;
+    --muted-soft:#EDE0D0;
+    --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: #E8A880;
+    color:var(--ink);
+    font-family:"IBM Plex Sans", system-ui, sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    padding: 28px 16px 80px;
+  }
+  .mono{ font-family:"IBM Plex Mono", "Courier New", monospace; }
+
+  .doc{
+    max-width: 860px;
+    margin: 0 auto;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    box-shadow: 6px 6px 0 rgba(42,26,14,0.15);
+    position: relative;
+    z-index: 2;
+  }
+
+  /* HEADER */
+  .doc__head{
+    border-bottom: 3px double var(--ink);
+    padding: 22px 28px 18px;
+    position:relative;
+  }
+  .doc__code{
+    font-family:"IBM Plex Mono",monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    display:flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .doc__title{
+    font-family:"IBM Plex Mono",monospace;
+    font-weight:700;
+    font-size: clamp(22px, 4vw, 30px);
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    color: var(--blue-deep);
+  }
+  .doc__subtitle{
+    margin:0;
+    color: var(--ink-soft);
+    font-size: 14px;
+    max-width: 560px;
+  }
+
+  /* SECTION */
+  .sezione{
+    padding: 22px 28px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sezione--results{
+    padding: 0;
+  }
+  .sezione__head{
+    display:flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .sezione__num{
+    font-family:"IBM Plex Mono",monospace;
+    font-weight:700;
+    font-size: 13px;
+    color: var(--paper);
+    background: var(--blue);
+    padding: 2px 8px;
+    border-radius: var(--radius);
+    letter-spacing: 0.04em;
+  }
+  .sezione__titolo{
+    font-weight:700;
+    font-size: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--ink);
+  }
+  .sezione__help{
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: -8px 0 16px;
+  }
+
+  /* FORM ELEMENTS */
+  label{ display:block; font-size:13px; font-weight:600; margin-bottom:6px; color: var(--ink); }
+  select, input[type="number"]{
+    width:100%;
+    font-family:"IBM Plex Sans", sans-serif;
+    font-size: 15px;
+    padding: 11px 12px;
+    border: 1px solid var(--ink);
+    background: #fff;
+    border-radius: var(--radius);
+    color: var(--ink);
+  }
+  select:focus, input:focus{ outline: 2px solid var(--blue); outline-offset: 1px; }
+  select#tipoIntervento{
+    font-weight:600;
+    font-size:16px;
+    padding: 14px 12px;
+    background: var(--blue-soft);
+    border: 1.5px solid var(--blue);
+  }
+
+  .campo-importo{ position:relative; }
+  .campo-importo input{
+    padding-left: 32px;
+    font-family:"IBM Plex Mono",monospace;
+    text-align:right;
+  }
+  .campo-importo::before{
+    content:"€";
+    position:absolute;
+    left:12px; top:50%; transform:translateY(calc(-50% + 14px));
+    color: var(--ink-soft);
+    font-family:"IBM Plex Mono",monospace;
+    pointer-events:none;
+  }
+  .campo-importo label{ display:block; }
+
+  .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 620px){
+    .grid2, .grid3{ grid-template-columns: 1fr; }
+  }
+
+  .campo{ margin-bottom: 16px; }
+  .campo:last-child{ margin-bottom:0; }
+  .campo__hint{ font-size:12px; color:var(--ink-soft); margin-top:5px; }
+
+  /* TOGGLE PILLS (checkbox) */
+  .toggle-row{
+    display:flex;
+    align-items:flex-start;
+    gap:12px;
+    border:1px solid var(--line);
+    background: var(--paper-deep);
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    cursor:pointer;
+  }
+  .toggle-row:hover{ border-color: var(--blue); }
+  .toggle-row input[type="checkbox"]{
+    width:20px; height:20px; flex:0 0 20px; margin-top:1px; accent-color: var(--blue); cursor:pointer;
+  }
+  .toggle-row__text{ flex:1; }
+  .toggle-row__title{ font-weight:600; font-size:14px; display:block; margin-bottom:2px; }
+  .toggle-row__desc{ font-size:12.5px; color:var(--ink-soft); display:block; }
+
+  .radio-group{ display:flex; flex-direction:column; gap:8px; }
+  .radio-opt{
+    display:flex; align-items:flex-start; gap:10px;
+    border:1px solid var(--line); background: var(--paper-deep); padding:11px 13px;
+    border-radius:var(--radius); cursor:pointer;
+  }
+  .radio-opt:hover{ border-color:var(--blue); }
+  .radio-opt input{ width:18px; height:18px; margin-top:2px; accent-color:var(--blue); }
+  .radio-opt__title{ font-weight:600; font-size:13.5px; }
+  .radio-opt__desc{ font-size:12px; color:var(--ink-soft); }
+
+  .campo-nota{
+    font-size:12.5px;
+    color: var(--blue-deep);
+    background: var(--blue-soft);
+    border-left: 3px solid var(--blue);
+    padding: 8px 10px;
+    margin-top:6px;
+    border-radius: var(--radius);
+  }
+
+  .hidden{ display:none !important; }
+
+  /* BUTTONS */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    font-family:"IBM Plex Mono",monospace;
+    font-weight:700;
+    font-size:14px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    padding: 15px 24px;
+    border: none;
+    border-radius: var(--radius);
+    cursor:pointer;
+    width:100%;
+    transition: transform 0.05s ease;
+  }
+  .btn:active{ transform: translateY(1px); }
+  .btn-primary{ background: var(--stamp); color:#fff; box-shadow: 3px 3px 0 rgba(23,32,41,0.25); }
+  .btn-primary:hover{ background:#8f2f23; }
+  .btn-secondary{ background: var(--blue); color:#fff; box-shadow: 3px 3px 0 rgba(23,32,41,0.25); }
+  .btn-secondary:hover{ background: var(--blue-deep); }
+  .btn[disabled]{ background:#9aa39a; cursor:not-allowed; box-shadow:none; }
+
+  /* RESULTS */
+  .risultato-wrap{ padding: 26px 28px; }
+  .risultato-empty{
+    padding: 30px 28px;
+    text-align:center;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+  .esito-top{
+    display:flex; flex-wrap:wrap; gap:24px; align-items:center;
+    margin-bottom: 22px;
+  }
+
+  /* STAMP */
+  .stamp{
+    width: 142px; height:142px; flex:0 0 142px;
+    border-radius:50%;
+    border: 4px double currentColor;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    transform: rotate(-7deg);
+    position:relative;
+    font-family:"IBM Plex Mono", monospace;
+  }
+  .stamp::before{
+    content:"";
+    position:absolute; inset:9px;
+    border:1px solid currentColor;
+    border-radius:50%;
+    opacity:0.55;
+  }
+  .stamp__pct{ font-size:34px; font-weight:700; line-height:1; }
+  .stamp__label{ font-size:9px; letter-spacing:0.12em; text-transform:uppercase; margin-top:4px; text-align:center; padding:0 10px;}
+  .stamp--si{ color: var(--ok); }
+  .stamp--parziale{ color: var(--warn); }
+  .stamp--no{ color: var(--bad); }
+  .stamp--incerto{ color: var(--muted); }
+
+  .esito-testo{ flex:1; min-width:220px; }
+  .esito-badge{
+    display:inline-block;
+    font-family:"IBM Plex Mono",monospace;
+    font-weight:700;
+    font-size:12px;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    padding:4px 10px;
+    border-radius: var(--radius);
+    margin-bottom:8px;
+  }
+  .esito-badge--si{ background:var(--ok-soft); color:var(--ok); }
+  .esito-badge--parziale{ background:var(--warn-soft); color:var(--warn); }
+  .esito-badge--no{ background:var(--bad-soft); color:var(--bad); }
+  .esito-badge--incerto{ background:var(--muted-soft); color:var(--muted); }
+  .esito-titolo{ font-size:18px; font-weight:700; margin:0 0 8px; }
+  .esito-motivazione{ font-size:13.5px; color: var(--ink-soft); margin:0 0 6px; }
+  .esito-motivazione b{ color:var(--ink); }
+
+  table.fattura{ width:100%; border-collapse:collapse; font-size:13.5px; margin-top:6px; }
+  table.fattura th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.04em;
+    color:var(--ink-soft); border-bottom:1.5px solid var(--ink); padding:6px 6px;
+  }
+  table.fattura td{ padding:9px 6px; border-bottom:1px solid var(--line); }
+  table.fattura td.num, table.fattura th.num{ text-align:right; font-family:"IBM Plex Mono",monospace; }
+  table.fattura tr.tot td{ border-top:2px solid var(--ink); border-bottom:none; font-weight:700; padding-top:11px; }
+  .pill-aliquota{
+    display:inline-block; font-family:"IBM Plex Mono",monospace; font-weight:700; font-size:12px;
+    padding:1px 7px; border-radius:10px;
+  }
+  .pill-10{ background:var(--ok-soft); color:var(--ok); }
+  .pill-22{ background:var(--bad-soft); color:var(--bad); }
+  .pill-4{ background:var(--blue-soft); color:var(--blue-deep); }
+  .pill-rc{ background:var(--muted-soft); color:var(--muted); font-size:10px; }
+
+  .note-box{
+    margin-top:18px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    background: var(--paper-deep);
+    border:1px solid var(--line);
+    padding:10px 12px;
+    border-radius: var(--radius);
+  }
+  .note-box b{ color:var(--ink); }
+
+  .azioni{ display:flex; gap:12px; margin-top:22px; flex-wrap:wrap; }
+  .azioni .btn{ flex:1; min-width:180px; }
+
+  .footer-disclaimer{
+    padding: 18px 28px 24px;
+    font-size:11.5px;
+    color: var(--ink-soft);
+    line-height:1.55;
+  }
+  .footer-disclaimer b{ color: var(--ink); }
+
+  ::selection{ background: var(--blue); color:#fff; }
+  @media print {
+    body { background: #fff; font-family: Arial, sans-serif; }
+    .header, .sezione:not(#sezione-risultato), .azioni, #risultatoVuoto { display: none !important; }
+    #sezione-risultato { box-shadow: none; border: 1px solid #ccc; padding: 16px; }
+    .esito-top { display: flex; align-items:center; gap: 12px; margin-bottom: 12px; }
+    .stamp { width:90px; height:90px; flex:0 0 90px; border-radius:8px; border:2px solid currentColor; transform:none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .stamp::before{ display:none; }
+    .stamp__pct{ font-size:22px; }
+    .fattura { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .fattura th, .fattura td { border: 1px solid #ccc; padding: 4px 6px; }
+    .fattura thead { background: #1b4f6b; color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .note-box { margin-top: 10px; padding: 8px; border: 1px solid #ccc; font-size: 11px; }
+    .esito-motivazione { font-size: 10px; color: #333; margin: 4px 0; }
+    .pill-aliquota { border: 1px solid #999; border-radius: 4px; padding: 1px 4px; font-size: 10px; }
+    .footer-disclaimer, a { color: #333 !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="doc">
+
+  <div class="doc__head">
+    <div class="doc__code">
+      <span>MOD. IVA-ED / 2026</span>
+      <span id="dataOggi"></span>
+    </div>
+    <h1 class="doc__title">Simulatore IVA agevolata — interventi edilizi</h1>
+    <p class="doc__subtitle">Seleziona il tipo di intervento, indica le caratteristiche del contratto e dell'immobile, inserisci gli importi e ottieni l'aliquota IVA applicabile con la relativa motivazione.</p>
+  </div>
+
+  <!-- 01 — INTERVENTO -->
+  <div class="sezione">
+    <div class="sezione__head">
+      <span class="sezione__num">01</span>
+      <span class="sezione__titolo">Tipo di intervento</span>
+    </div>
+    <div class="campo">
+      <label for="tipoIntervento">Seleziona l'intervento edilizio</label>
+      <select id="tipoIntervento"></select>
+    </div>
+  </div>
+
+  <!-- 02 — CARATTERISTICHE -->
+  <div class="sezione">
+    <div class="sezione__head">
+      <span class="sezione__num">02</span>
+      <span class="sezione__titolo">Caratteristiche dell'intervento</span>
+    </div>
+
+    <div id="blocco_qualificazioneDemo" class="campo hidden">
+      <label>Il titolo abilitativo qualifica l'intervento come</label>
+      <div class="radio-group">
+        <label class="radio-opt">
+          <input type="radio" name="qualificazioneDemo" value="ristrutturazione" checked>
+          <span><span class="radio-opt__title">Ristrutturazione edilizia</span><br><span class="radio-opt__desc">Demolizione e ricostruzione, anche con diversa sagoma, sedime, prospetti, caratteristiche tipologiche o con incrementi volumetrici nei limiti consentiti dagli strumenti urbanistici vigenti: inquadrata come ristrutturazione edilizia ai sensi dell'art. 3 c.1 lett. d) DPR 380/2001, come modificato dal Decreto Semplificazioni (D.L. 76/2020).</span></span>
+        </label>
+        <label class="radio-opt">
+          <input type="radio" name="qualificazioneDemo" value="nuova_costruzione">
+          <span><span class="radio-opt__title">Nuova costruzione</span><br><span class="radio-opt__desc">Il titolo abilitativo qualifica l'intervento come nuova costruzione (nuovo organismo edilizio che eccede i limiti della ristrutturazione, es. extra volumetria non consentita dal piano urbanistico o cambio d'area di sedime non ammesso).</span></span>
+        </label>
+      </div>
+      <div class="campo-nota">Dal Decreto Semplificazioni (D.L. 76/2020) la demolizione e ricostruzione rientra nella <b>ristrutturazione edilizia</b> anche con modifiche di sagoma, sedime e con aumenti di volumetria nei limiti urbanistici: non deve più essere una "fedele ricostruzione". Trattandosi di ristrutturazione, l'aliquota è sempre il <b>10%</b> (n. 127-quaterdecies, Tabella A Parte III, DPR 633/1972): il 4% non si applica mai in questo caso, indipendentemente dal fatto che sia prima o seconda casa.<br><br><b>Attenzione:</b> su immobili vincolati (beni culturali/paesaggistici, centri storici, zone omogenee A) restano regole più restrittive, che in alcuni casi richiedono ancora il mantenimento di sagoma/sedime originari; conta inoltre la "contiguità temporale" tra demolizione e ricostruzione. Per questi casi verifica la qualificazione con il tecnico incaricato prima di affidarti all'esito di questo simulatore.</div>
+    </div>
+
+    <div id="blocco_tipoImmobile" class="campo hidden">
+      <label>Tipo di immobile</label>
+      <div class="radio-group">
+        <label class="radio-opt">
+          <input type="radio" name="tipoImmobile" value="abitativo" checked>
+          <span><span class="radio-opt__title">Abitativo</span><br><span class="radio-opt__desc">Unità a prevalente destinazione abitativa privata (categorie catastali A/1–A/11, escluso A/10) o sue pertinenze.</span></span>
+        </label>
+        <label class="radio-opt">
+          <input type="radio" name="tipoImmobile" value="non_abitativo_speciale">
+          <span><span class="radio-opt__title">Non abitativo — caso speciale</span><br><span class="radio-opt__desc">Edificio formalmente non abitativo ma assimilato o misto: RSA/casa di riposo con stabile residenzialità, convento, ospizio, edificio misto con >50% abitativo nelle parti comuni. Vedi il campo successivo.</span></span>
+        </label>
+        <label class="radio-opt">
+          <input type="radio" name="tipoImmobile" value="non_abitativo">
+          <span><span class="radio-opt__title">Non abitativo</span><br><span class="radio-opt__desc">Ufficio (A/10), negozio (C/1), capannone (D), edificio strumentale, albergo (D/2), ospedale, scuola, caserma o altro immobile senza carattere residenziale permanente.</span></span>
+        </label>
+      </div>
+      <div id="blocco_tipoImmobileSpeciale" class="hidden" style="margin-top:10px;">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px;">Specifica il tipo di immobile speciale</label>
+        <div class="radio-group">
+          <label class="radio-opt">
+            <input type="radio" name="tipoImmobileSpeciale" value="rsa_ospizio" checked>
+            <span><span class="radio-opt__title">RSA / casa di riposo / ospizio / convento / orfanotrofio — con stabile residenzialità</span><br><span class="radio-opt__desc">Edificio assimilato alle case di abitazione ai sensi dell'art. 1, L. 659/1961, destinato a costituire stabile residenza di collettività. IVA 10% su manutenzione ordinaria e straordinaria confermata da AdE (Risp. 20/2021; Circ. 71/E/2000).</span></span>
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="tipoImmobileSpeciale" value="edificio_misto_prevalenza">
+            <span><span class="radio-opt__title">Parti comuni di edificio misto con oltre il 50% abitativo</span><br><span class="radio-opt__desc">Intervento sulle parti comuni (scale, tetto, facciata) di un edificio dove più del 50% della superficie fuori terra è residenziale. IVA 10% proporzionale alle quote millesimali, anche per le porzioni spettanti a unità non abitative.</span></span>
+          </label>
+        </div>
+        <div class="campo-nota">
+          <b>Attenzione:</b> rimangono esclusi e vanno al 22% anche se tecnicamente "assimilati": ospedali, scuole, caserme, day hospital, ambulatori, asili — cioè edifici che, pur rientrando nella L. 659/1961, non hanno il carattere di stabile residenza permanente (Circ. AdE 151/1999; Circ. 71/E/2000; Resp. 20/2021).
+        </div>
+      </div>
+    </div>
+
+    <div id="blocco_infoTupini" class="campo hidden">
+      <div class="campo-nota">
+        <b>Cos'è la "Legge Tupini" (L. 408/1949).</b> Stabilisce quali edifici sono "edilizia abitativa non di lusso" e quindi ammessi alle aliquote agevolate (4% o 10%) invece del 22% ordinario, sia in costruzione che alla prima vendita. Un edificio è "Tupini" se, contando solo i piani <i>fuori terra</i> (interrati e seminterrati non contano), rispetta insieme tre proporzioni: più del 50% della superficie ad uso abitativo non di lusso; massimo il 25% a negozi/attività commerciali; il resto a uffici, studi professionali o pertinenze (cantine, garage).<br><br>
+        <b>Esempio.</b> Palazzina di 4 piani fuori terra, 200 mq ciascuno (800 mq totali): piano terra con 2 negozi (200 mq = 25% del totale, al limite massimo) e ai piani 1°-2°-3° sei appartamenti (600 mq = 75%, abitativo ampiamente sopra il 50%). Rispettando entrambi i limiti, è a tutti gli effetti un Fabbricato Tupini: sui lavori di costruzione si applica il 4% se il committente è un privato che realizza la prima casa, il 10% se è un'impresa che costruisce per rivendere o un privato che realizza una seconda casa. Anche i negozi al piano terra, alla prima vendita da parte del costruttore, sconteranno il 10% invece del 22%.
+      </div>
+    </div>
+
+    <div id="blocco_lusso" class="campo hidden">
+      <label class="toggle-row" for="chk_lusso">
+        <input type="checkbox" id="chk_lusso">
+        <span class="toggle-row__text">
+          <span class="toggle-row__title">Immobile catastalmente "di lusso" (A/1, A/8, A/9)</span>
+          <span class="toggle-row__desc">Dal 13 dicembre 2014 (art. 33, D.Lgs. 175/2014; Circ. AdE 31/E/2014) l'unico criterio rilevante ai fini IVA è la categoria catastale: A/1 abitazioni signorili, A/8 ville, A/9 castelli e palazzi di pregio. Il D.M. 2 agosto 1969 è superato per tutte le operazioni IVA (prima casa, seconda casa, costruzione, appalto, Tupini). Attenzione: la Cassazione (sent. 12024/2015; Cass. 29643/2019) mantiene il DM 1969 per verificare la correttezza dell'accatastamento — un immobile A/2 con superficie utile >240 mq e finiture di pregio può essere riclassificato coattivamente in A/1 con effetti IVA retroattivi.</span>
+        </span>
+      </label>
+    </div>
+
+    <div id="blocco_committentePrivato" class="campo hidden">
+      <label class="toggle-row" for="chk_committentePrivato">
+        <input type="checkbox" id="chk_committentePrivato" checked>
+        <span class="toggle-row__text">
+          <span class="toggle-row__title">Il committente è una persona fisica che agisce come privato</span>
+          <span class="toggle-row__desc">Non sta acquisendo l'immobile nell'esercizio di un'attività d'impresa, arte o professione. Se il committente è un'impresa (anche di costruzioni, per sé o per la successiva vendita), il 4% non può mai applicarsi, indipendentemente da ogni altro requisito.</span>
+        </span>
+      </label>
+    </div>
+
+    <div id="blocco_primaCasa" class="campo hidden">
+      <label class="toggle-row" for="chk_primaCasa">
+        <input type="checkbox" id="chk_primaCasa">
+        <span class="toggle-row__text">
+          <span class="toggle-row__title" id="lbl_primaCasaTitle">È la "prima casa" del committente</span>
+          <span class="toggle-row__desc" id="lbl_primaCasaDesc">Il committente dichiara: di non essere titolare, neppure in comunione con il coniuge, di altra casa di abitazione nel Comune dove sorge l'immobile; di non essere titolare su tutto il territorio nazionale di un'altra "prima casa" già agevolata; di avere la residenza nel Comune o di impegnarsi a trasferirla entro 18 mesi (oppure di svolgervi la propria attività).</span>
+        </span>
+      </label>
+    </div>
+
+    <div id="blocco_barriere" class="campo hidden">
+      <label class="toggle-row" for="chk_barriere">
+        <input type="checkbox" id="chk_barriere">
+        <span class="toggle-row__text">
+          <span class="toggle-row__title">L'intervento è specificamente finalizzato all'eliminazione di barriere architettoniche</span>
+          <span class="toggle-row__desc">Conforme ai requisiti tecnici del D.P.R. 236/1989, realizzato con un vero contratto d'appalto (non una semplice vendita con posa) e coperto da asseverazione di un tecnico abilitato. Non richiede la presenza di persone con disabilità.</span>
+        </span>
+      </label>
+    </div>
+
+    <div id="blocco_fornitura" class="campo hidden">
+      <label>Chi fornisce i materiali e i beni</label>
+      <div class="radio-group">
+        <label class="radio-opt">
+          <input type="radio" name="fornitura" value="impresa" checked>
+          <span><span class="radio-opt__title">L'impresa che esegue i lavori</span><br><span class="radio-opt__desc">Unico contratto d'appalto comprensivo di manodopera e materiali.</span></span>
+        </label>
+        <label class="radio-opt">
+          <input type="radio" name="fornitura" value="diretto">
+          <span><span class="radio-opt__title">Acquistati direttamente dal committente</span><br><span class="radio-opt__desc">Presso un fornitore diverso da chi esegue la posa/i lavori.</span></span>
+        </label>
+      </div>
+    </div>
+
+    <div id="blocco_tipoMaterialeDiretto" class="campo hidden">
+      <label>Natura del materiale acquistato direttamente</label>
+      <div class="radio-group">
+        <label class="radio-opt">
+          <input type="radio" name="tipoMaterialeDiretto" value="finito" checked>
+          <span><span class="radio-opt__title">Bene finito</span><br><span class="radio-opt__desc">Prodotto pronto per essere incorporato senza ulteriori lavorazioni: es. sanitari, caldaia, infissi, piastrelle, porte, cappotto termico preformato.</span></span>
+        </label>
+        <label class="radio-opt">
+          <input type="radio" name="tipoMaterialeDiretto" value="grezzo">
+          <span><span class="radio-opt__title">Materia prima o semilavorato</span><br><span class="radio-opt__desc">Materiale grezzo o da lavorare in cantiere: es. cemento sfuso, sabbia, ghiaia, ferro in barre da piegare, blocchi di polistirolo da sagomare.</span></span>
+        </label>
+      </div>
+      <div class="campo-nota">Quando acquisti direttamente (fuori appalto), il 10% del n. 127-terdecies, Tabella A Parte III, DPR 633/72 si applica solo ai <b>beni finiti</b> (Circolare Min. Finanze 71/E/2000, Risoluzione AdE 23/E/2004). Materie prime e semilavorati non rientrano in questa categoria e restano all'aliquota ordinaria del 22%, anche se destinati allo stesso cantiere agevolato.</div>
+    </div>
+
+    <div id="blocco_reverseCharge" class="campo hidden">
+      <label class="toggle-row" for="chk_reverseCharge">
+        <input type="checkbox" id="chk_reverseCharge">
+        <span class="toggle-row__text">
+          <span class="toggle-row__title">Il committente è soggetto passivo IVA e l'impianto è integrato/pertinenziale all'edificio</span>
+          <span class="toggle-row__desc">Determina l'eventuale reverse charge ex art. 17 c.6 lett. a-ter) DPR 633/72 (circolare 37/E/2015): non cambia l'aliquota, ma chi versa l'imposta. Non si applica se l'impianto è accatastato come unità autonoma D/1 o D/10.</span>
+        </span>
+      </label>
+    </div>
+
+    <div id="blocco_accumuloRetrofit" class="campo hidden">
+      <label class="toggle-row" for="chk_accumuloRetrofit">
+        <input type="checkbox" id="chk_accumuloRetrofit">
+        <span class="toggle-row__text">
+          <span class="toggle-row__title">L'intervento riguarda (anche) un sistema di accumulo aggiunto su un impianto fotovoltaico GIÀ esistente</span>
+          <span class="toggle-row__desc">Batteria installata in un momento successivo, non contestuale alla costruzione iniziale dell'impianto. L'aliquota resta 10%, ma su questo scenario specifico la prassi non è univoca: il simulatore mostrerà un avviso di attenzione.</span>
+        </span>
+      </label>
+    </div>
+
+    <div id="blocco_subappalto" class="campo hidden">
+      <label class="toggle-row" for="chk_committenteB2B">
+        <input type="checkbox" id="chk_committenteB2B">
+        <span class="toggle-row__text">
+          <span class="toggle-row__title">Il committente è un soggetto passivo IVA (B2B)</span>
+          <span class="toggle-row__desc">Il destinatario della fattura è un'impresa, un professionista o comunque un soggetto con partita IVA. Se fatturi a un privato, il reverse charge non si applica mai e questo blocco non ha effetto.</span>
+        </span>
+      </label>
+      <div id="blocco_tipoRC" class="hidden" style="margin-top:10px;">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px;">Tipologia del rapporto contrattuale</label>
+        <div class="radio-group">
+          <label class="radio-opt">
+            <input type="radio" name="tipoRC" value="subappalto" checked>
+            <span><span class="radio-opt__title">Vero subappalto (art. 17 c.6 lett. a)</span><br><span class="radio-opt__desc">Stai fatturando come subappaltatore a un'impresa principale o a un altro subappaltatore nell'ambito di lavori edili generici (sezione F ATECO). Non si applica se stai fatturando a un "contraente generale" a cui il committente ha affidato la totalità dei lavori.</span></span>
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="tipoRC" value="appalto_diretto">
+            <span><span class="radio-opt__title">Appalto/contratto diretto — categoria ATECO specifica (art. 17 c.6 lett. a-ter)</span><br><span class="radio-opt__desc">Fatturi direttamente al committente (non in subappalto), ma la prestazione rientra nelle categorie: installazione impianti, completamento edifici, demolizione, pulizia edifici. Per questi il reverse charge scatta in ogni appalto B2B, non serve un subappalto.</span></span>
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="tipoRC" value="nessuno">
+            <span><span class="radio-opt__title">Appalto diretto generico (no reverse charge)</span><br><span class="radio-opt__desc">Appalto diretto per lavori edili generici (nuova costruzione, ristrutturazione) non riconducibili alle 4 categorie specifiche della lett. a-ter. In questo caso l'IVA si espone normalmente in fattura.</span></span>
+          </label>
+        </div>
+        <div class="campo-nota" id="nota_tipoRC"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 03 — IMPORTI -->
+  <div class="sezione">
+    <div class="sezione__head">
+      <span class="sezione__num">03</span>
+      <span class="sezione__titolo">Importi (imponibile, IVA esclusa)</span>
+    </div>
+
+    <div class="grid2">
+      <div class="campo campo-importo">
+        <label for="imp_manodopera">Manodopera / posa in opera</label>
+        <input type="number" id="imp_manodopera" min="0" step="0.01" placeholder="0,00" value="0">
+      </div>
+      <div class="campo campo-importo" id="blocco_imp_materiali">
+        <label for="imp_materiali" id="lbl_imp_materiali">Materiali e beni comuni</label>
+        <input type="number" id="imp_materiali" min="0" step="0.01" placeholder="0,00" value="0">
+      </div>
+    </div>
+
+    <div id="blocco_beneSig" class="campo hidden">
+      <label class="toggle-row" for="chk_beneSig">
+        <input type="checkbox" id="chk_beneSig">
+        <span class="toggle-row__text">
+          <span class="toggle-row__title">Sono presenti "beni significativi"</span>
+          <span class="toggle-row__desc">Ascensori, infissi, caldaie, videocitofoni, climatizzatori, sanitari/rubinetteria, impianti di sicurezza (D.M. 29/12/1999).</span>
+        </span>
+      </label>
+      <div class="campo-nota" id="nota_beneSig"></div>
+      <div id="blocco_imp_beneSig" class="campo campo-importo hidden" style="margin-top:10px;">
+        <label for="imp_beneSig">Importo dei beni significativi</label>
+        <input type="number" id="imp_beneSig" min="0" step="0.01" placeholder="0,00" value="0">
+      </div>
+    </div>
+
+    <div class="campo campo-importo" style="margin-top:6px;">
+      <label for="imp_professionali">Prestazioni professionali (progettazione, direzione lavori)</label>
+      <input type="number" id="imp_professionali" min="0" step="0.01" placeholder="0,00" value="0">
+      <div class="campo__hint">Sempre soggette ad IVA al 22%, indipendentemente dall'esito sull'intervento.</div>
+    </div>
+
+    <button class="btn btn-primary" id="btnSimula" style="margin-top:18px;">Simula</button>
+  </div>
+
+  <!-- 04 — RISULTATO -->
+  <div id="sezione-risultato" class="sezione sezione--results">
+    <div class="sezione__head" style="padding:22px 28px 0;">
+      <span class="sezione__num">04</span>
+      <span class="sezione__titolo">Risultato</span>
+    </div>
+    <div id="risultatoVuoto" class="risultato-empty">Compila i campi sopra e premi "Simula" per ottenere l'esito.</div>
+    <div id="risultatoContenuto" class="risultato-wrap hidden"></div>
+  </div>
+
+  <div class="footer-disclaimer">
+    <b>Nota.</b> Questo strumento è un supporto orientativo basato su normativa, prassi dell'Agenzia delle Entrate e fonti tecniche di settore raccolte a giugno 2026; non costituisce consulenza fiscale o legale. La materia presenta numerose eccezioni e casi di confine: per operazioni concrete, in particolare quando gli importi sono rilevanti, verifica sempre con il tuo commercialista o con l'Agenzia delle Entrate prima di emettere fattura.
+  </div>
+  <div style="text-align:center; margin-top:18px; padding: 14px 20px; font-size:13px; color: var(--muted); line-height:1.6;">
+    Per ulteriori dettagli e approfondimenti è possibile scrivere alla mail<br>
+    <a href="mailto:a.l.realestateinvest@gmail.com" style="color: var(--blue); font-weight:600; text-decoration:none;">a.l.realestateinvest@gmail.com</a><br>
+    per una consulenza personalizzata.
+  </div>
+</div>
+
+<script>
+(function(){
+
+  document.getElementById('dataOggi').textContent = new Date().toLocaleDateString('it-IT', {day:'2-digit', month:'long', year:'numeric'});
+
+  // ---------------------------------------------------------------
+  // DATI: elenco interventi
+  // ---------------------------------------------------------------
+  var INTERVENTI = [
+    { id:'manutenzione_ordinaria', label:'Manutenzione ordinaria', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera' },
+    { id:'manutenzione_straordinaria', label:'Manutenzione straordinaria', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera' },
+    { id:'bonifica_amianto', label:'Bonifica e smaltimento amianto', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', notaExtra:'Trattata fiscalmente come manutenzione straordinaria (art. 3 c.1 lett. b DPR 380/2001). Attenzione: la raccolta, il trasporto e lo smaltimento dei rifiuti contenenti amianto godono del 10% solo se eseguiti dalla stessa ditta che realizza l\'intervento di recupero edilizio (nesso di accessorietà, risposta AdE n. 11/2021). Se affidati a un\'azienda di smaltimento diversa e fatturati separatamente, quella prestazione sconta il 22% — indipendentemente dal fatto che il cantiere principale goda dell\'aliquota agevolata.' },
+    { id:'impianto_elettrico', label:'Rifacimento impianto elettrico', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', ateCategoria:'impianti' },
+    { id:'impianto_idrico', label:'Rifacimento impianto idrico-sanitario', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', beneSigDefault:true, ateCategoria:'impianti' },
+    { id:'sostituzione_caldaia', label:'Sostituzione caldaia / impianto di riscaldamento', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', beneSigDefault:true, ateCategoria:'impianti' },
+    { id:'sostituzione_infissi', label:'Sostituzione serramenti / infissi esterni', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', beneSigDefault:true, ateCategoria:'completamento', notaExtra:'La sostituzione di infissi eseguita come intervento autonomo è manutenzione straordinaria (art. 3 c.1 lett. b, DPR 380/2001): l\'IVA al 4% non si applica, nemmeno per la prima casa. Il 4% riguarda solo la fornitura di infissi nell\'ambito di un appalto di nuova costruzione "Tupini" prima casa (o suo ampliamento) — situazione diversa, selezionabile con "Nuova costruzione".' },
+    { id:'cappotto_termico', label:'Coibentazione termica (cappotto termico)', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', ateCategoria:'impianti' },
+    { id:'impermeabilizzazione', label:'Impermeabilizzazione tetto / copertura', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', ateCategoria:'completamento' },
+    { id:'facciata', label:'Rifacimento facciata esterna', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', ateCategoria:'completamento' },
+    { id:'pavimentazioni', label:'Rifacimento pavimentazioni interne', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', ateCategoria:'completamento' },
+    { id:'tinteggiatura', label:'Tinteggiatura interna / esterna', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', ateCategoria:'completamento' },
+    { id:'ascensore_barriere', label:'Ascensore o opere per barriere architettoniche', gruppo:'Manutenzione (interventi leggeri)', famiglia:'leggera', beneSigDefault:true, ateCategoria:'impianti' },
+
+    { id:'antisismico', label:'Interventi antisismici', gruppo:'Recupero edilizio pesante', famiglia:'pesante', notaExtra:'Equiparati alla ristrutturazione edilizia: IVA al 10% su manodopera e beni finiti. Il sismabonus è una detrazione IRPEF/IRES separata e non incide sull\'aliquota IVA.' },
+    { id:'restauro_risanamento', label:'Restauro e risanamento conservativo', gruppo:'Recupero edilizio pesante', famiglia:'pesante' },
+    { id:'ristrutturazione_edilizia', label:'Ristrutturazione edilizia (opere edili generali)', gruppo:'Recupero edilizio pesante', famiglia:'pesante' },
+    { id:'demolizione_ricostruzione', label:'Demolizione e ricostruzione', gruppo:'Recupero edilizio pesante', famiglia:'demo' },
+
+    { id:'fotovoltaico', label:'Installazione impianto fotovoltaico', gruppo:'Interventi specifici', famiglia:'fotovoltaico' },
+
+    { id:'nuova_costruzione', label:'Nuova costruzione', gruppo:'Altro', famiglia:'tupini' }
+  ];
+
+  var BENI_SIGNIFICATIVI_DESC = 'ascensori e montacarichi, infissi esterni/interni, caldaie, videocitofoni, apparecchiature di condizionamento, sanitari e rubinetteria da bagno, impianti di sicurezza';
+
+  // ---------------------------------------------------------------
+  // POPOLA IL MENU A TENDINA
+  // ---------------------------------------------------------------
+  var selectIntervento = document.getElementById('tipoIntervento');
+  var gruppiVisti = {};
+  var currentOptgroup = null;
+  INTERVENTI.forEach(function(it){
+    if(!gruppiVisti[it.gruppo]){
+      gruppiVisti[it.gruppo] = true;
+      currentOptgroup = document.createElement('optgroup');
+      currentOptgroup.label = it.gruppo;
+      selectIntervento.appendChild(currentOptgroup);
+    }
+    var opt = document.createElement('option');
+    opt.value = it.id;
+    opt.textContent = it.label;
+    // find the right optgroup (last created matching gruppo)
+    var groups = selectIntervento.querySelectorAll('optgroup');
+    var target = groups[groups.length-1];
+    for(var g=0; g<groups.length; g++){ if(groups[g].label === it.gruppo) target = groups[g]; }
+    target.appendChild(opt);
+  });
+
+  function getIntervento(id){
+    for(var i=0;i<INTERVENTI.length;i++){ if(INTERVENTI[i].id===id) return INTERVENTI[i]; }
+    return null;
+  }
+
+  // ---------------------------------------------------------------
+  // VISIBILITA' CAMPI DINAMICA
+  // ---------------------------------------------------------------
+  function show(id){ document.getElementById(id).classList.remove('hidden'); }
+  function hide(id){ document.getElementById(id).classList.add('hidden'); }
+
+  function aggiornaCampiVisibili(){
+    var it = getIntervento(selectIntervento.value);
+    var fam = it.famiglia;
+
+    // reset: nascondi tutto
+    ['blocco_qualificazioneDemo','blocco_tipoImmobile','blocco_lusso','blocco_committentePrivato','blocco_primaCasa',
+     'blocco_barriere','blocco_fornitura','blocco_infoTupini','blocco_tipoMaterialeDiretto',
+     'blocco_reverseCharge','blocco_accumuloRetrofit','blocco_subappalto','blocco_beneSig'].forEach(hide);
+
+    document.getElementById('lbl_imp_materiali').textContent = 'Materiali e beni comuni';
+
+    if(fam === 'demo'){
+      show('blocco_qualificazioneDemo');
+    }
+
+    if(fam === 'leggera'){
+      show('blocco_tipoImmobile');
+      show('blocco_barriere');
+      show('blocco_fornitura');
+      show('blocco_subappalto');
+      show('blocco_beneSig');
+    }
+
+    if(fam === 'pesante'){
+      show('blocco_barriere');
+      show('blocco_subappalto');
+      show('blocco_beneSig');
+      show('blocco_fornitura');
+      var fornituraPesanteRadio = document.querySelector('input[name="fornitura"]:checked');
+      if(fornituraPesanteRadio && fornituraPesanteRadio.value === 'diretto'){
+        show('blocco_tipoMaterialeDiretto');
+      }
+    }
+
+    var qualifDemo = document.querySelector('input[name="qualificazioneDemo"]:checked');
+    if(fam === 'demo' && qualifDemo && qualifDemo.value === 'nuova_costruzione'){
+      show('blocco_lusso');
+      show('blocco_committentePrivato');
+      show('blocco_primaCasa');
+      show('blocco_infoTupini');
+      document.getElementById('lbl_primaCasaTitle').textContent = 'È la "prima casa" dell\'acquirente';
+      document.getElementById('lbl_primaCasaDesc').textContent = 'Il committente dichiara: di non essere titolare, neppure in comunione con il coniuge, di altra casa di abitazione nel Comune dove sorge l\'immobile; di non essere titolare su tutto il territorio nazionale di un\'altra "prima casa" già agevolata; di avere la residenza nel Comune o di impegnarsi a trasferirla entro 18 mesi (oppure di svolgervi la propria attività).';
+    }
+    if(fam === 'demo' && qualifDemo && qualifDemo.value !== 'nuova_costruzione'){
+      show('blocco_beneSig');
+      show('blocco_subappalto');
+    }
+
+    if(fam === 'fotovoltaico'){
+      show('blocco_reverseCharge');
+      show('blocco_accumuloRetrofit');
+      document.getElementById('lbl_imp_materiali').textContent = 'Materiali e componenti';
+    }
+
+    if(fam === 'tupini'){
+      show('blocco_lusso');
+      show('blocco_committentePrivato');
+      show('blocco_primaCasa');
+      show('blocco_infoTupini');
+      document.getElementById('lbl_primaCasaTitle').textContent = 'È la "prima casa" dell\'acquirente';
+      document.getElementById('lbl_primaCasaDesc').textContent = 'Il committente dichiara: di non essere titolare, neppure in comunione con il coniuge, di altra casa di abitazione nel Comune dove sorge l\'immobile; di non essere titolare su tutto il territorio nazionale di un\'altra "prima casa" già agevolata; di avere la residenza nel Comune o di impegnarsi a trasferirla entro 18 mesi (oppure di svolgervi la propria attività).';
+    }
+
+    // bene significativo default pre-spunta
+    var chkBeneSig = document.getElementById('chk_beneSig');
+    if(it.beneSigDefault){ chkBeneSig.checked = true; } else { chkBeneSig.checked = false; }
+    aggiornaImportoBeneSig();
+    aggiornaNotaBeneSig();
+
+    // nascondi risultato precedente quando si cambia intervento
+    document.getElementById('risultatoContenuto').classList.add('hidden');
+    document.getElementById('risultatoVuoto').classList.remove('hidden');
+  }
+
+  function aggiornaImportoBeneSig(){
+    if(document.getElementById('chk_beneSig').checked){
+      show('blocco_imp_beneSig');
+    } else {
+      hide('blocco_imp_beneSig');
+    }
+  }
+
+  function aggiornaTipoMaterialeDiretto(){
+    var it = getIntervento(selectIntervento.value);
+    if(!it || it.famiglia !== 'pesante') return;
+    var fornituraRadio = document.querySelector('input[name="fornitura"]:checked');
+    if(fornituraRadio && fornituraRadio.value === 'diretto'){
+      show('blocco_tipoMaterialeDiretto');
+    } else {
+      hide('blocco_tipoMaterialeDiretto');
+    }
+  }
+
+  function aggiornaNotaBeneSig(){
+    var it = getIntervento(selectIntervento.value);
+    var fam = it.famiglia;
+    var fornituraRadio = document.querySelector('input[name="fornitura"]:checked');
+    var fornitoImpresa = fornituraRadio ? fornituraRadio.value === 'impresa' : true;
+    var nota = document.getElementById('nota_beneSig');
+    if(!nota) return;
+
+    if(fam === 'pesante' && fornitoImpresa){
+      nota.innerHTML =
+        '<b>In questo tipo di intervento non c\'è una soglia.</b> Per restauro/risanamento/ristrutturazione, quando i materiali sono forniti dalla stessa impresa che esegue i lavori (contratto di appalto), i beni significativi godono per intero del 10%, anche se il loro valore è alto: qui il limite del 50% non si applica (n. 127-quaterdecies, Tabella A Parte III, DPR 633/72).<br><br>' +
+        '<b>Esempio.</b> Sostituzione integrale degli infissi (8.000 €) in una ristrutturazione edilizia appaltata da 12.000 € totali: gli infissi restano interamente al 10%.';
+    } else if(fam === 'pesante' && !fornitoImpresa){
+      nota.innerHTML =
+        '<b>Attenzione: qui la soglia non c\'entra, ma conta la natura del materiale.</b> Comprando direttamente fuori appalto, il 10% (n. 127-terdecies, Tabella A Parte III, DPR 633/72) si applica solo se il materiale è un "bene finito" pronto per la posa (es. caldaia, sanitari, infissi). Materie prime o semilavorati (es. cemento sfuso, ferro da piegare) acquistati direttamente restano invece al 22% (Circolare Min. Finanze 71/E/2000; Risoluzione AdE 23/E/2004). Specifica la natura del materiale nel campo che apparirà qui sotto.<br><br>' +
+        '<b>Esempio.</b> Compri direttamente la caldaia (bene finito) e poi chiami un idraulico solo per installarla: la caldaia resta al 10% perché siamo nella famiglia "Recupero pesante". Se invece comprassi del cemento sfuso da gettare, quello sconterebbe il 22%.';
+    } else if(!fornitoImpresa){
+      nota.innerHTML =
+        '<b>Qui non si applica il calcolo misto 10%/22%.</b> La doppia aliquota dei beni significativi vale solo nei contratti di appalto in cui lo stesso soggetto esegue i lavori <i>e</i> fornisce il bene. Se invece acquisti tu il bene significativo direttamente da un negoziante/fornitore (senza che sia lui a eseguire la posa), non c\'è alcun contratto di appalto con fornitura: il negoziante deve fatturarti il bene a IVA ordinaria 22% per intero, indipendentemente dal suo valore.<br><br>' +
+        '<b>Esempio.</b> Compri la caldaia da 3.500 € al negozio e poi chiami un idraulico solo per installarla: la caldaia resta al 22% per intero, non entra in nessun calcolo di soglia.';
+    } else {
+      nota.innerHTML =
+        '<b>Cosa sono, in pratica.</b> Sono componenti con un valore economico autonomo e rilevante rispetto al resto dei lavori (non semplici materiali da costruzione). Quando è la stessa impresa che esegue i lavori a fornirli, la legge li tratta diversamente: se il loro valore supera quello della restante prestazione (manodopera + altri materiali), l\'IVA al 10% si applica solo fino a quella soglia, mentre l\'eccedenza paga il 22%.<br><br>' +
+        '<b>Esempio 1.</b> Rifacimento di un bagno per 10.000 € totali, di cui 6.000 € di sanitari e rubinetteria nuovi forniti dall\'idraulico che fa anche la posa: quei 6.000 € sono un bene significativo.<br>' +
+        '<b>Esempio 2.</b> Sostituzione della caldaia per 3.500 € (fornita e installata dalla stessa ditta) nell\'ambito di una manutenzione straordinaria da 5.000 € totali: la caldaia è un bene significativo.';
+    }
+  }
+
+  selectIntervento.addEventListener('change', aggiornaCampiVisibili);
+  selectIntervento.addEventListener('change', aggiornaSuggerimentoRC);
+  document.querySelectorAll('input[name="tipoImmobile"]').forEach(function(r){
+    r.addEventListener('change', function(){
+      var val = document.querySelector('input[name="tipoImmobile"]:checked').value;
+      if(val === 'non_abitativo_speciale'){
+        document.getElementById('blocco_tipoImmobileSpeciale').classList.remove('hidden');
+      } else {
+        document.getElementById('blocco_tipoImmobileSpeciale').classList.add('hidden');
+      }
+    });
+  });
+  document.getElementById('chk_beneSig').addEventListener('change', aggiornaImportoBeneSig);
+  document.getElementById('chk_committenteB2B').addEventListener('change', function(){
+    var isChecked = document.getElementById('chk_committenteB2B').checked;
+    if(isChecked){
+      document.getElementById('blocco_tipoRC').classList.remove('hidden');
+      aggiornaSuggerimentoRC();
+    } else {
+      document.getElementById('blocco_tipoRC').classList.add('hidden');
+      document.getElementById('nota_tipoRC').textContent = '';
+    }
+  });
+  document.querySelectorAll('input[name="qualificazioneDemo"]').forEach(function(r){
+    r.addEventListener('change', aggiornaCampiVisibili);
+  });
+  document.querySelectorAll('input[name="fornitura"]').forEach(function(r){
+    r.addEventListener('change', aggiornaNotaBeneSig);
+    r.addEventListener('change', aggiornaTipoMaterialeDiretto);
+  });
+
+  function aggiornaSuggerimentoRC(){
+    var it = getIntervento(selectIntervento.value);
+    var nota = document.getElementById('nota_tipoRC');
+    if(!nota) return;
+    if(!it || !document.getElementById('chk_committenteB2B').checked){
+      nota.innerHTML = '';
+      return;
+    }
+    var ateCategoria = it.ateCategoria || null;
+    if(ateCategoria === 'impianti'){
+      var rAter = document.querySelector('input[name="tipoRC"][value="appalto_diretto"]');
+      if(rAter) rAter.checked = true;
+      nota.innerHTML = '<b>Suggerito: lett. a-ter.</b> Questo intervento rientra nella categoria "installazione di impianti" (ATECO 43.21-43.29): il reverse charge si applica in qualsiasi contratto B2B, anche appalto diretto, non solo in subappalto.';
+    } else if(ateCategoria === 'completamento'){
+      var rAter = document.querySelector('input[name="tipoRC"][value="appalto_diretto"]');
+      if(rAter) rAter.checked = true;
+      nota.innerHTML = '<b>Suggerito: lett. a-ter.</b> Questo intervento rientra nella categoria "completamento di edifici" (ATECO 43.31-43.39): il reverse charge si applica in qualsiasi contratto B2B, anche appalto diretto. Eccezione: se incluso in un contratto unico di ristrutturazione/nuova costruzione, non si scompone e vale l\'IVA ordinaria sull\'intero contratto.';
+    } else {
+      var rLettA = document.querySelector('input[name="tipoRC"][value="subappalto"]');
+      if(rLettA) rLettA.checked = true;
+      nota.innerHTML = '<b>Intervento edilizio generico.</b> Il reverse charge si applica solo se sei in un vero rapporto di subappalto verso l\'impresa principale o un altro subappaltatore (lett. a). Se stai fatturando direttamente al committente finale in appalto, l\'IVA si espone normalmente.';
+    }
+  }
+
+  aggiornaCampiVisibili(); // stato iniziale
+
+  // ---------------------------------------------------------------
+  // MOTORE DI CALCOLO
+  // ---------------------------------------------------------------
+  function numVal(id){
+    var v = parseFloat(document.getElementById(id).value);
+    return isNaN(v) || v < 0 ? 0 : v;
+  }
+  function checked(id){ return document.getElementById(id).checked; }
+
+  // Formula del bene significativo (confermata su due esempi numerici delle fonti):
+  // se beneSig <= nonSig (manodopera + materiali comuni forniti dall'impresa) -> tutto al 10%
+  // altrimenti -> base10 = 2 * nonSig ; base22 = beneSig - nonSig
+  function calcolaBeneSignificativo(nonSig, beneSig){
+    if(beneSig <= 0) return { base10: nonSig, base22: 0 };
+    if(beneSig <= nonSig) return { base10: nonSig + beneSig, base22: 0 };
+    return { base10: 2*nonSig, base22: beneSig - nonSig };
+  }
+
+  function rigaTab(label, importo, aliquota, rc){
+    return { label:label, importo:importo, aliquota:aliquota, rc: !!rc };
+  }
+
+  function esegui(){
+    var it = getIntervento(selectIntervento.value);
+    var fam = it.famiglia;
+
+    var manodopera = numVal('imp_manodopera');
+    var materiali = numVal('imp_materiali');
+    var haBeneSig = checked('chk_beneSig');
+    var beneSig = haBeneSig ? numVal('imp_beneSig') : 0;
+    var professionali = numVal('imp_professionali');
+
+    var committenteB2B = !document.getElementById('blocco_subappalto').classList.contains('hidden') && checked('chk_committenteB2B');
+    var tipoRCRadio = document.querySelector('input[name="tipoRC"]:checked');
+    var tipoRC = tipoRCRadio ? tipoRCRadio.value : 'nessuno';
+    // Determina il tipo effettivo di reverse charge:
+    // - lett. a : vero subappalto edile generico
+    // - lett. ater : impianti/completamento/demolizione in qualsiasi appalto B2B (anche diretto)
+    // - nessuno : appalto diretto generico
+    var subappaltoLettA = committenteB2B && tipoRC === 'subappalto';
+    var subappaltoLettATer = committenteB2B && (tipoRC === 'appalto_diretto');
+    var subappalto = subappaltoLettA || subappaltoLettATer; // flag generico per il post-processing esistente
+    var barriere = !document.getElementById('blocco_barriere').classList.contains('hidden') && checked('chk_barriere');
+    var lusso = !document.getElementById('blocco_lusso').classList.contains('hidden') && checked('chk_lusso');
+    var committentePrivato = checked('chk_committentePrivato');
+    var primaCasa = !document.getElementById('blocco_primaCasa').classList.contains('hidden') && checked('chk_primaCasa');
+    var tipoImmobile = document.querySelector('input[name="tipoImmobile"]:checked');
+    tipoImmobile = tipoImmobile ? tipoImmobile.value : 'abitativo';
+    var fornitura = document.querySelector('input[name="fornitura"]:checked');
+    fornitura = fornitura ? fornitura.value : 'impresa';
+    var fornitoImpresa = fornitura === 'impresa';
+    var qualifDemo = document.querySelector('input[name="qualificazioneDemo"]:checked');
+    qualifDemo = qualifDemo ? qualifDemo.value : 'ristrutturazione';
+
+    var righe = [];
+    var esito = 'si';
+    var motivazione = [];
+    var totaleImponibile = manodopera + materiali + beneSig + professionali;
+
+    function output(r, e, m){ righe = r; esito = e; motivazione = m; }
+
+    // --- BARRIERE ARCHITETTONICHE: 4% su tutto (non per demo/tupini) ---
+    if(barriere && (fam==='leggera' || fam==='pesante')){
+      var totLavoriB = manodopera + materiali + beneSig;
+      output(
+        [rigaTab('Intervento per eliminazione barriere architettoniche', totLavoriB, 4)],
+        'si',
+        ['Le opere finalizzate al superamento delle barriere architettoniche (D.P.R. 236/1989) beneficiano dell\'IVA al 4% sull\'intera prestazione (n. 41-ter, Tabella A, Parte II, DPR 633/1972), senza distinzione tra manodopera e beni — anche se sono presenti beni significativi come un ascensore — e indipendentemente dalla presenza di persone con disabilità nell\'edificio. Attenzione: secondo l\'Agenzia delle Entrate (risposta n. 212/2025) il 4% spetta solo se l\'operazione è un vero contratto d\'appalto; se invece è una cessione con posa in opera da parte dello stesso soggetto che vende il prodotto (es. un negozio che vende e installa), l\'aliquota torna quella ordinaria del bene venduto.']
+      );
+    }
+    else {
+      switch(fam){
+
+        case 'leggera':
+          if(tipoImmobile === 'non_abitativo'){
+            var totNA = manodopera + materiali + beneSig;
+            output(
+              [rigaTab('Intero intervento (immobile non abitativo)', totNA, 22)],
+              'no',
+              ['L\'IVA al 10% per manutenzione ordinaria e straordinaria è riservata ai fabbricati a prevalente destinazione abitativa privata (art. 7 c.1 lett. b, L. 488/1999; Circ. AdE 71/E/2000). Uffici (A/10), negozi (C/1), capannoni (D), alberghi (D/2), ospedali, scuole, caserme e in generale gli edifici strumentali non rientrano in questa agevolazione: si applica l\'aliquota ordinaria del 22%.']
+            );
+          } else if(tipoImmobile === 'non_abitativo_speciale'){
+            var tipoSpecRadio = document.querySelector('input[name="tipoImmobileSpeciale"]:checked');
+            var tipoSpec = tipoSpecRadio ? tipoSpecRadio.value : 'rsa_ospizio';
+            var totSP = manodopera + materiali + beneSig;
+            if(tipoSpec === 'rsa_ospizio'){
+              output(
+                [rigaTab('Manutenzione (edificio assimilato con stabile residenzialità)', totSP, 10)],
+                'si',
+                ['RSA, case di riposo, ospizi, conventi, orfanotrofi e strutture assimilate che costituiscono stabile residenza di collettività sono equiparati ai fabbricati a prevalente destinazione abitativa ai sensi dell\'art. 1, L. 659/1961 (Circ. AdE 71/E/2000; Circ. 151/1999; Risp. AdE n. 20/2021). Su questi edifici la manutenzione ordinaria e straordinaria gode dell\'aliquota agevolata del 10%. Non rileva la classificazione catastale, ma la destinazione oggettiva a stabile residenza della collettività.']
+              );
+            } else {
+              // edificio misto con prevalenza abitativa: 10% sulle parti comuni (millesimi comprese unità non abitative)
+              output(
+                [rigaTab('Manutenzione parti comuni (edificio con >50% abitativo)', totSP, 10)],
+                'si',
+                ['In un edificio dove oltre il 50% della superficie fuori terra è destinata ad uso abitativo privato, gli interventi sulle parti comuni (facciata, tetto, scale, impianti condominiali) godono dell\'IVA al 10% — compresi i millesimi corrispondenti alle unità non abitative presenti nell\'edificio (negozi, uffici, autorimesse condominiali). Circolari AdE 71/E/2000 e 98/E/2000.', 'Attenzione: l\'agevolazione riguarda le parti comuni, non gli interventi sulle singole unità non abitative (un negozio al piano terra, anche nello stesso edificio, resta al 22%).']
+              );
+            }
+          } else if(!fornitoImpresa){
+            var r2 = [rigaTab('Manodopera / posa in opera', manodopera, 10)];
+            var noteF = ['I materiali e i beni acquistati direttamente dal committente presso un fornitore diverso da chi esegue i lavori non godono dell\'aliquota agevolata: solo la manodopera resta al 10%.'];
+            var esitoF = 'parziale';
+            if(materiali > 0) r2.push(rigaTab('Materiali (acquistati direttamente)', materiali, 22));
+            if(beneSig > 0) r2.push(rigaTab('Beni significativi (acquistati direttamente)', beneSig, 22));
+            if(materiali === 0 && beneSig === 0) esitoF = 'si';
+            output(r2, esitoF, noteF);
+          } else {
+            var nonSig = manodopera + materiali;
+            var calc = calcolaBeneSignificativo(nonSig, beneSig);
+            if(beneSig === 0){
+              output([rigaTab('Manodopera e materiali', calc.base10, 10)], 'si', ['Manodopera e materiali, forniti dall\'impresa esecutrice su immobile abitativo, sono interamente agevolati al 10%.']);
+            } else if(calc.base22 === 0){
+              output([rigaTab('Intero intervento (bene significativo entro il 50% del totale)', calc.base10, 10)], 'si', ['Il valore dei beni significativi (' + BENI_SIGNIFICATIVI_DESC + ') non supera quello della restante prestazione: l\'intero importo gode dell\'aliquota al 10%.']);
+            } else {
+              output(
+                [rigaTab('Manodopera, materiali e quota di beni significativi', calc.base10, 10), rigaTab('Eccedenza dei beni significativi', calc.base22, 22)],
+                'parziale',
+                ['I beni significativi (' + BENI_SIGNIFICATIVI_DESC + ') superano il valore della restante prestazione: l\'aliquota del 10% si applica solo fino a concorrenza di tale valore (circolare 15/E/2018); l\'eccedenza è soggetta al 22%.']
+              );
+            }
+          }
+          break;
+
+        case 'pesante':
+          var fornituraPesante = document.querySelector('input[name="fornitura"]:checked');
+          var fornitoImpresaPesante = fornituraPesante ? fornituraPesante.value === 'impresa' : true;
+          if(fornitoImpresaPesante){
+            var totP = manodopera + materiali + beneSig;
+            output(
+              [rigaTab('Manodopera e beni finiti (incluso bene significativo)', totP, 10)],
+              'si',
+              ['Per restauro, risanamento conservativo, ristrutturazione edilizia e interventi equiparati, il contratto di appalto (n. 127-quaterdecies, Tabella A Parte III, DPR 633/72) agevola al 10% manodopera e materiali forniti dall\'impresa esecutrice, senza il limite del bene significativo, anche su immobili non abitativi.']
+            );
+          } else {
+            var tipoMatRadio = document.querySelector('input[name="tipoMaterialeDiretto"]:checked');
+            var tipoMat = tipoMatRadio ? tipoMatRadio.value : 'finito';
+            var totaleMaterialiDiretti = materiali + beneSig;
+            var righeP = [];
+            if(manodopera > 0){
+              righeP.push(rigaTab('Manodopera / posa in opera (servizio di ristrutturazione)', manodopera, 10));
+            }
+            if(totaleMaterialiDiretti > 0){
+              if(tipoMat === 'finito'){
+                righeP.push(rigaTab('Beni finiti acquistati direttamente dal committente', totaleMaterialiDiretti, 10));
+              } else {
+                righeP.push(rigaTab('Materie prime / semilavorati acquistati direttamente', totaleMaterialiDiretti, 22));
+              }
+            }
+            var motivazioneP = tipoMat === 'finito'
+              ? ['L\'acquisto diretto, fuori contratto d\'appalto, gode comunque del 10% perché si tratta di un "bene finito" pronto per essere incorporato nell\'immobile (n. 127-terdecies, Tabella A Parte III, DPR 633/72; Circolare Min. Finanze 71/E/2000; Risoluzione AdE 23/E/2004). La manodopera di posa, qualificandosi come servizio di ristrutturazione, resta al 10% indipendentemente da chi fornisce i materiali.']
+              : ['Materie prime e semilavorati (non ancora trasformati in un prodotto finito pronto per la posa) acquistati direttamente dal committente NON rientrano nel n. 127-terdecies e scontano l\'aliquota ordinaria del 22%, anche se destinati allo stesso cantiere agevolato (Circolare Min. Finanze 71/E/2000; Risoluzione AdE 23/E/2004). La manodopera di posa resta comunque al 10% come servizio di ristrutturazione.'];
+            var esitoP = (tipoMat === 'finito') ? 'si' : (manodopera > 0 ? 'parziale' : 'no');
+            if(righeP.length === 0){ righeP.push(rigaTab('Nessun importo inserito', 0, 10)); }
+            output(righeP, esitoP, motivazioneP);
+          }
+          break;
+
+        case 'demo':
+          if(qualifDemo === 'ristrutturazione'){
+            var totD = manodopera + materiali + beneSig;
+            output(
+              [rigaTab('Lavori appaltati (ristrutturazione edilizia)', totD, 10)],
+              'si',
+              ['Demolizione e ricostruzione inquadrata come ristrutturazione edilizia (art. 3 c.1 lett. d, DPR 380/2001, come modificato dal Decreto Semplificazioni): l\'aliquota è sempre il 10% sui lavori appaltati (n. 127-quaterdecies, Tabella A Parte III, DPR 633/1972) — non il 4%, indipendentemente dal fatto che sia prima o seconda casa.']
+            );
+          } else {
+            // nuova costruzione: regole Tupini
+            esitoTupini(manodopera, materiali, beneSig, lusso, committentePrivato, primaCasa, output);
+          }
+          break;
+
+        case 'fotovoltaico':
+          var totFv = manodopera + materiali;
+          var noteFv = [
+            'Aliquota specifica per impianti di produzione di energia da fonte solare-fotovoltaica (n. 127-quinquies/septies, Tabella A Parte III, DPR 633/72; Circolare AdE 36/E/2013), applicabile sia ai materiali che alla manodopera. Il requisito è esclusivamente tecnico (capacità dell\'impianto di produrre e fornire energia, componenti CEI 82-25): l\'aliquota NON dipende dal tipo di immobile (abitativo, industriale, commerciale, agricolo), da "prima casa" o "seconda casa", dalla proprietà (privata o condominiale), né dal fatto che l\'impianto sia destinato a una Comunità Energetica Rinnovabile o ad autoconsumo individuale.',
+            'Attenzione: questo calcolo vale per la REALIZZAZIONE, installazione, ampliamento o revamping di un impianto. È un caso diverso — fuori dallo scope di questo simulatore — la compravendita di un impianto GIÀ ESISTENTE e accatastato autonomamente come D/1 o D/10: quella è una cessione di fabbricato strumentale (art. 10, c.1, n. 8-ter, DPR 633/72), esente IVA salvo opzione per l\'imponibilità con reverse charge.'
+          ];
+          if(checked('chk_reverseCharge')){
+            noteFv.push('Essendo il committente soggetto IVA e l\'impianto integrato/semi-integrato all\'edificio (o a terra ma funzionale ad esso), il prestatore non addebita l\'IVA in fattura ma applica il reverse charge ex art. 17, comma 6, lett. a-ter), DPR 633/72: sarà il committente a integrare la fattura con l\'aliquota del 10% e a versarla. Non si applica se l\'impianto viene accatastato autonomamente come D/1 o D/10 (in tal caso è un immobile a sé, non "parte" dell\'edificio).');
+          }
+          if(checked('chk_accumuloRetrofit')){
+            noteFv.push('Punto di attenzione: il sistema di accumulo non è stato installato contestualmente alla realizzazione dell\'impianto, ma aggiunto in un momento successivo su un impianto già esistente. L\'orientamento prevalente continua ad applicare il 10% anche in questo caso (la batteria resta funzionale al medesimo impianto di produzione/distribuzione), ma non risultano prese di posizione specifiche e univoche dell\'Agenzia su questo scenario isolato: verifica con il commercialista prima di fatturare.');
+          }
+          output([rigaTab('Impianto fotovoltaico (materiali e manodopera)', totFv, 10)], 'si', noteFv);
+          break;
+
+        case 'tupini':
+          esitoTupini(manodopera, materiali, beneSig, lusso, committentePrivato, primaCasa, output);
+          break;
+      }
+    }
+
+    if(professionali > 0){
+      righe.push(rigaTab('Prestazioni professionali (progettazione, direzione lavori)', professionali, 22));
+    }
+
+    if(it.notaExtra){ motivazione.push(it.notaExtra); }
+
+    // --- REVERSE CHARGE: determina il regime applicabile e aggiunge motivazione ---
+    if(subappaltoLettA){
+      righe = righe.map(function(r){
+        if(r.label.indexOf('Prestazioni professionali') === 0) return r;
+        return rigaTab(r.label, r.importo, r.aliquota, true);
+      });
+      motivazione = [
+        'Vero subappalto nel settore edile (sezione F ATECO): si applica il reverse charge ex art. 17, c.6, lett. a), DPR 633/1972. L\'aliquota resta quella propria dell\'intervento, ma il subappaltatore non addebita né incassa l\'IVA in fattura — l\'impresa principale (committente della fattura) la annota sia a debito che a credito.',
+        'Limiti: non si applica se il committente immediato è un "contraente generale" a cui il committente finale ha affidato la totalità dei lavori (eccezione esplicita nella lett. a); non si applica a forniture di soli materiali senza posa; non si applica se il subappaltatore è in regime forfettario/minimi.'
+      ].concat(motivazione);
+    } else if(subappaltoLettATer){
+      righe = righe.map(function(r){
+        if(r.label.indexOf('Prestazioni professionali') === 0) return r;
+        return rigaTab(r.label, r.importo, r.aliquota, true);
+      });
+      var categoriaDesc = (it.ateCategoria === 'impianti') ? 'installazione di impianti (ATECO 43.21-43.29)' : 'lavori di completamento di edifici (ATECO 43.31-43.39)';
+      motivazione = [
+        'Prestazione di ' + categoriaDesc + ' resa nei confronti di un soggetto passivo IVA (B2B): si applica il reverse charge ex art. 17, c.6, lett. a-ter), DPR 633/1972 (L. 190/2014). Questa lettera si applica a prescindere dal tipo di rapporto contrattuale (appalto diretto, subappalto, contratto d\'opera), a prescindere dall\'ATECO del prestatore e del committente, e anche nei confronti di un contraente generale — non vale l\'eccezione della lett. a). Unico requisito: entrambe le parti devono essere soggetti passivi IVA.',
+        'Principio di unicità del contratto (Circolare AdE 14/E/2015): se questa prestazione fa parte di un contratto unico più ampio (es. ristrutturazione completa), che comprende anche lavori edili generici, non si scompone — il reverse charge a-ter non si applica e l\'IVA segue le regole ordinarie sull\'intero contratto. Si applica solo quando la prestazione è oggetto di un contratto autonomo e distinto.'
+      ].concat(motivazione);
+    }
+
+    mostraRisultato(it, righe, esito, motivazione, totaleImponibile);
+  }
+
+  function esitoTupini(manodopera, materiali, beneSig, lusso, committentePrivato, primaCasa, output){
+    var tot = manodopera + materiali + beneSig;
+    var caveatTupini = 'Questa è la categoria con più eccezioni: l\'aliquota può cambiare anche in base al fatto che si tratti di un appalto di servizi o della cessione del fabbricato finito, e da quando decorrono i 5 anni dalla fine lavori. Per la nuova costruzione ti consigliamo di considerare questo esito come indicativo e di farlo sempre verificare dal commercialista prima di fatturare.';
+    if(lusso){
+      output([rigaTab('Nuova costruzione (immobile di lusso)', tot, 22)], 'no', ['Le abitazioni classificate nelle categorie catastali A/1 (signorile), A/8 (ville), A/9 (castelli/palazzi di pregio) sono escluse da qualunque aliquota agevolata, indipendentemente da chi sia il committente o da ogni altro requisito. Dal 13 dicembre 2014 (art. 33, D.Lgs. 175/2014; Circ. AdE 31/E/2014) il criterio catastale sostituisce il vecchio DM 2 agosto 1969 per tutte le operazioni IVA. Si applica l\'aliquota ordinaria del 22%.', caveatTupini]);
+    } else if(!committentePrivato){
+      output([rigaTab('Nuova costruzione (Tupini, committente non privato)', tot, 10)], 'si', ['Il beneficio del 4% prima casa è riservato alle persone fisiche che non agiscono nell\'esercizio di un\'attività d\'impresa, arte o professione (Nota II-bis, art. 1, Tariffa Parte Prima, DPR 131/86, richiamata dal n. 39 Tabella A Parte II DPR 633/72). Se il committente è un\'impresa — anche di costruzioni, per sé o per la successiva rivendita — il 4% non può applicarsi: l\'abitazione non di lusso resta comunque agevolata, ma all\'aliquota intermedia del 10% (n. 127-septies/quaterdecies, Tabella A Parte III, DPR 633/72).', caveatTupini]);
+    } else if(primaCasa){
+      output([rigaTab('Nuova costruzione (Tupini, prima casa)', tot, 4)], 'si', ['Il committente, persona fisica privata, dichiara i requisiti soggettivi e oggettivi della prima casa (Nota II-bis, art. 1, Tariffa Parte Prima, DPR 131/86): l\'appalto di costruzione di un\'abitazione non di lusso beneficia dell\'aliquota minima del 4% (n. 39, Tabella A Parte II, DPR 633/72), sia sui lavori sia sui beni finiti forniti.', caveatTupini]);
+    } else {
+      output([rigaTab('Nuova costruzione (Tupini, seconda casa)', tot, 10)], 'si', ['Il committente è una persona fisica privata, ma senza i requisiti per la prima casa (es. seconda casa, o titolarità di altro immobile agevolato): la nuova costruzione di un\'abitazione non di lusso con le caratteristiche della Legge Tupini resta comunque agevolata all\'aliquota intermedia del 10% (n. 127-septies/quaterdecies, Tabella A Parte III, DPR 633/72).', caveatTupini]);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // RENDER RISULTATO
+  // ---------------------------------------------------------------
+  var ultimoRisultato = null;
+
+  function mostraRisultato(it, righe, esito, motivazione, totaleImponibile){
+    document.getElementById('risultatoVuoto').classList.add('hidden');
+    var box = document.getElementById('risultatoContenuto');
+    box.classList.remove('hidden');
+
+    var haReverseCharge = righe.some(function(r){ return r.rc; });
+
+    var totaleIvaAddebitata = 0, totaleIvaRC = 0;
+    righe.forEach(function(r){
+      var iva = r.importo * (r.aliquota/100);
+      if(r.rc) totaleIvaRC += iva; else totaleIvaAddebitata += iva;
+    });
+    var totaleRighe = righe.reduce(function(s,r){ return s + r.importo; }, 0);
+    var totaleFattura = totaleRighe + totaleIvaAddebitata; // quanto incassa realmente chi emette la fattura
+
+    var aliquoteUsate = {};
+    righe.forEach(function(r){ aliquoteUsate[r.aliquota] = true; });
+
+    var esitoLabel = { si:'Applicabile', parziale:'Parzialmente applicabile', no:'Non applicabile', incerto:'Da verificare' };
+    var stampPct = '';
+    if(esito==='si'){
+      stampPct = Object.keys(aliquoteUsate).filter(function(a){return a!=='22';})[0] || '22';
+      stampPct = stampPct + '%';
+    } else if(esito==='no'){
+      stampPct = '22%';
+    } else {
+      stampPct = 'MISTO';
+    }
+
+    var fmt = function(n){ return n.toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2}); };
+
+    var html = '';
+    html += '<div class="esito-top">';
+    html += '<div class="stamp stamp--'+esito+'"><span class="stamp__pct">'+stampPct+'</span><span class="stamp__label">Aliquota IVA</span></div>';
+    html += '<div class="esito-testo">';
+    html += '<span class="esito-badge esito-badge--'+esito+'">'+esitoLabel[esito]+'</span>';
+    if(haReverseCharge){ html += ' <span class="esito-badge esito-badge--incerto">Reverse charge (art. 17 c.6 lett. a)</span>'; }
+    html += '<h3 class="esito-titolo">'+it.label+'</h3>';
+    motivazione.forEach(function(m){ html += '<p class="esito-motivazione">'+m+'</p>'; });
+    html += '</div></div>';
+
+    html += '<table class="fattura"><thead><tr><th>Voce</th><th class="num">Imponibile</th><th class="num">Aliquota</th><th class="num">IVA</th></tr></thead><tbody>';
+    righe.forEach(function(r){
+      var ivaCell = r.rc ? '<span class="pill-aliquota pill-rc" title="Reverse charge: IVA non esposta in fattura">non esposta</span>' : '€ '+fmt(r.importo*(r.aliquota/100));
+      var aliquotaCell = '<span class="pill-aliquota pill-'+r.aliquota+'">'+r.aliquota+'%</span>' + (r.rc ? ' <span class="pill-aliquota pill-rc">RC</span>' : '');
+      html += '<tr><td>'+r.label+'</td><td class="num mono">€ '+fmt(r.importo)+'</td><td class="num">'+aliquotaCell+'</td><td class="num mono">'+ivaCell+'</td></tr>';
+    });
+    html += '<tr class="tot"><td>Totale</td><td class="num mono">€ '+fmt(totaleImponibile)+'</td><td></td><td class="num mono">€ '+fmt(totaleIvaAddebitata)+'</td></tr>';
+    html += '</tbody></table>';
+
+    if(haReverseCharge){
+      html += '<div class="note-box"><b>Totale fattura emessa (imponibile + sola IVA addebitata): € '+fmt(totaleFattura)+'</b><br>'
+            + 'IVA in reverse charge, non incassata da te ma autoliquidata dal committente: € '+fmt(totaleIvaRC)+'</div>';
+    } else {
+      html += '<div class="note-box"><b>Totale fattura (imponibile + IVA): € '+fmt(totaleFattura)+'</b></div>';
+    }
+
+    var isIOSBtn = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    html += '<div class="azioni"><button class="btn btn-secondary" id="btnSalvaPdf">' + (isIOSBtn ? '🖨 Stampa / Salva come PDF' : '⬇ Salva PDF') + '</button></div>';
+
+    box.innerHTML = html;
+
+    ultimoRisultato = {
+      intervento: it.label,
+      righe: righe,
+      motivazione: motivazione,
+      totaleImponibile: totaleImponibile,
+      totaleIva: totaleIvaAddebitata,
+      totaleIvaRC: totaleIvaRC,
+      totaleFattura: totaleFattura,
+      haReverseCharge: haReverseCharge,
+      esitoLabel: esitoLabel[esito]
+    };
+
+    document.getElementById('btnSalvaPdf').addEventListener('click', salvaPdf);
+
+    if(typeof box.scrollIntoView === 'function'){
+      box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+  }
+
+  document.getElementById('btnSimula').addEventListener('click', esegui);
+
+  // ---------------------------------------------------------------
+  // ESPORTAZIONE PDF
+  // ---------------------------------------------------------------
+  function salvaPdf(){
+    if(!ultimoRisultato) return;
+    var jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+    if(!jsPDFCtor){ alert('Libreria PDF non disponibile: verifica la connessione internet e riprova.'); return; }
+
+    var doc = new jsPDFCtor({ unit:'mm', format:'a4' });
+    var pageW = doc.internal.pageSize.getWidth();
+    var pageH = doc.internal.pageSize.getHeight();
+    var marginX = 18;
+    var cardX = marginX;
+    var cardW = pageW - 2*marginX;
+    var fmt = function(n){ return n.toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2}); };
+
+    // Palette colori brand
+    var clCorallo  = [232,168,128];   // #E8A880 - sfondo pagina
+    var clAvorio   = [251,243,234];   // #FBF3EA - card
+    var clAvorioD  = [245,232,216];   // #F5E8D8 - righe alternate
+    var clBlu      = [27,79,107];     // #1B4F6B - intestazione tabella
+    var clBordeaux = [139,26,16];     // #8B1A10 - accento titolo
+    var clInk      = [42,26,14];      // #2A1A0E - testo principale
+    var clInkSoft  = [107,80,64];     // #6B5040 - testo secondario
+    var clLinea    = [201,184,168];   // #C9B8A8 - linee separatrici
+
+    // Helper: riempi sfondo pagina corallo e ridisegna card avorio
+    function paginaNuova(firstPage){
+      if(!firstPage){ doc.addPage(); }
+      doc.setFillColor.apply(doc, clCorallo);
+      doc.rect(0, 0, pageW, pageH, 'F');
+    }
+
+    paginaNuova(true);
+
+    // Card avorio (sfondo content area)
+    doc.setFillColor.apply(doc, clAvorio);
+    doc.rect(cardX - 2, 10, cardW + 4, pageH - 14, 'F');
+
+    var y = 18;
+
+    // ── INTESTAZIONE ──────────────────────────────────────────────
+    doc.setFont('helvetica','bold'); doc.setFontSize(8);
+    doc.setTextColor.apply(doc, clInkSoft);
+    doc.text('MOD. IVA-ED / 2026', marginX, y);
+    doc.text(new Date().toLocaleDateString('it-IT'), pageW-marginX, y, {align:'right'});
+    y += 7;
+
+    // Barra intestazione bordeaux
+    doc.setFillColor.apply(doc, clBordeaux);
+    doc.rect(cardX - 2, y, cardW + 4, 12, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','bold'); doc.setFontSize(15);
+    doc.text('Simulatore IVA agevolata — interventi edilizi', marginX, y + 8.5);
+    y += 17;
+
+    // Linea separatrice
+    doc.setDrawColor.apply(doc, clLinea); doc.setLineWidth(0.4);
+    doc.line(marginX, y, pageW-marginX, y);
+    y += 7;
+
+    // Intervento ed esito
+    doc.setTextColor.apply(doc, clInk);
+    doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text('Intervento:', marginX, y);
+    doc.setFont('helvetica','normal');
+    doc.text(ultimoRisultato.intervento, marginX + 26, y);
+    y += 6;
+
+    doc.setFont('helvetica','bold');
+    doc.text('Esito:', marginX, y);
+    doc.setFont('helvetica','normal');
+    doc.text('IVA agevolata ' + ultimoRisultato.esitoLabel.toLowerCase(), marginX + 26, y);
+    y += 10;
+
+    // ── TABELLA VOCI ──────────────────────────────────────────────
+    // Layout colonne (A4=210mm, card 18→192mm, font 8.5pt):
+    //   C1 Voce:        left  20mm  (max 75mm)
+    //   C2 Imponibile:  right 133mm (≈22mm testo → inizia a 111mm, gap da voce=16mm)
+    //   C3 Aliquota:    right 160mm (≈12mm testo → inizia a 148mm, gap da C2=15mm)
+    //   C4 IVA:         right 190mm (≈22mm testo → inizia a 168mm, gap da C3=8mm)
+    var C1 = marginX + 2;   // 20
+    var C2 = 133;
+    var C3 = 160;
+    var C4 = pageW - marginX - 2; // 190
+    var labelMaxW = 73;     // larghezza max colonna Voce in mm
+
+    // Intestazione tabella (blu)
+    doc.setFillColor.apply(doc, clBlu);
+    doc.rect(marginX, y, cardW, 7, 'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+    doc.text('Voce',        C1, y+5, {align:'left'});
+    doc.text('Imponibile',  C2, y+5, {align:'right'});
+    doc.text('Aliquota',    C3, y+5, {align:'right'});
+    doc.text('IVA',         C4, y+5, {align:'right'});
+    y += 7;
+
+    doc.setTextColor.apply(doc, clInk); doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+    ultimoRisultato.righe.forEach(function(r, idx){
+      var ivaText = r.rc ? 'non esposta' : ('EUR ' + fmt(r.importo*(r.aliquota/100)));
+      var labelLines = doc.splitTextToSize(r.label, labelMaxW);
+      var rowH = Math.max(7, labelLines.length * 4.6 + 2);
+      if(idx % 2 === 1){
+        doc.setFillColor.apply(doc, clAvorioD);
+        doc.rect(marginX, y, cardW, rowH, 'F');
+      }
+      doc.setTextColor.apply(doc, clInk);
+      doc.text(labelLines,               C1, y + 4.6, {align:'left'});
+      doc.text('EUR ' + fmt(r.importo),  C2, y + 4.6, {align:'right'});
+      doc.text(r.aliquota + '%' + (r.rc ? ' RC' : ''), C3, y + 4.6, {align:'right'});
+      doc.text(ivaText,                  C4, y + 4.6, {align:'right'});
+      y += rowH;
+    });
+
+    // Riga totali
+    doc.setDrawColor.apply(doc, clInk); doc.setLineWidth(0.5);
+    doc.line(marginX, y, pageW-marginX, y);
+    y += 6;
+    doc.setFont('helvetica','bold'); doc.setTextColor.apply(doc, clInk);
+    doc.text('Totale imponibile: EUR ' + fmt(ultimoRisultato.totaleImponibile), marginX, y);
+    y += 5;
+    doc.text('Totale IVA addebitata: EUR ' + fmt(ultimoRisultato.totaleIva), marginX, y);
+    y += 5;
+    if(ultimoRisultato.haReverseCharge){
+      doc.setFont('helvetica','normal'); doc.setFontSize(9);
+      doc.text('di cui in reverse charge (autoliquidata dal committente): EUR ' + fmt(ultimoRisultato.totaleIvaRC), marginX, y);
+      y += 5;
+      doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    }
+    doc.setFontSize(11);
+    doc.setTextColor.apply(doc, clBordeaux);
+    doc.text('Totale fattura emessa: EUR ' + fmt(ultimoRisultato.totaleFattura), marginX, y);
+    y += 11;
+
+    // ── MOTIVAZIONE ───────────────────────────────────────────────
+    doc.setFillColor.apply(doc, clAvorioD);
+    doc.rect(marginX - 1, y - 1, cardW + 2, 8, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc, clBlu);
+    doc.text('MOTIVAZIONE', marginX, y + 5.5);
+    y += 11;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor.apply(doc, clInk);
+    ultimoRisultato.motivazione.forEach(function(m){
+      var lines = doc.splitTextToSize(m, cardW - 2);
+      var bloccoH = lines.length * 4.2 + 4;
+      if(y + bloccoH > 272){
+        paginaNuova(false);
+        doc.setFillColor.apply(doc, clAvorio);
+        doc.rect(cardX - 2, 10, cardW + 4, pageH - 14, 'F');
+        y = 18;
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor.apply(doc, clInk);
+      }
+      doc.text(lines, marginX, y);
+      y += bloccoH;
+    });
+
+    // ── DISCLAIMER ────────────────────────────────────────────────
+    y += 4;
+    if(y > 272){
+      paginaNuova(false);
+      doc.setFillColor.apply(doc, clAvorio);
+      doc.rect(cardX - 2, 10, cardW + 4, pageH - 14, 'F');
+      y = 18;
+    }
+    doc.setDrawColor.apply(doc, clLinea); doc.setLineWidth(0.3);
+    doc.line(marginX, y, pageW-marginX, y);
+    y += 4;
+    doc.setFont('helvetica','italic'); doc.setFontSize(7); doc.setTextColor.apply(doc, clInkSoft);
+    var disclaimer = 'Estratto orientativo generato dal Simulatore IVA agevolata - interventi edilizi, basato su normativa e prassi raccolte a giugno 2026. Non costituisce consulenza fiscale o legale: verifica sempre con il tuo commercialista prima di emettere fattura.';
+    var discLines = doc.splitTextToSize(disclaimer, cardW - 2);
+    doc.text(discLines, marginX, y);
+    y += discLines.length * 3.2 + 5;
+
+    // ── CONTATTO ──────────────────────────────────────────────────
+    if(y > 278){ paginaNuova(false); doc.setFillColor.apply(doc, clAvorio); doc.rect(cardX-2,10,cardW+4,pageH-14,'F'); y = 18; }
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor.apply(doc, clInkSoft);
+    doc.text('Per ulteriori dettagli e approfondimenti è possibile scrivere alla mail', pageW/2, y, {align:'center'});
+    y += 4.5;
+    doc.setFont('helvetica','bold'); doc.setTextColor.apply(doc, clBordeaux);
+    doc.text('a.l.realestateinvest@gmail.com', pageW/2, y, {align:'center'});
+    y += 4.5;
+    doc.setFont('helvetica','normal'); doc.setTextColor.apply(doc, clInkSoft);
+    doc.text('per una consulenza personalizzata.', pageW/2, y, {align:'center'});
+
+    var nomeFile = 'simulazione-iva-' + selectIntervento.value + '-' + new Date().toISOString().slice(0,10) + '.pdf';
+
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if(isIOS){
+      window.print();
+    } else {
+      doc.save(nomeFile);
+    }
+  }
+
+})();
+</script>
+<!-- Decorazione: metà casa A.L. Real Estate, fissa a destra, altezza pagina intera -->
+<div aria-hidden="true" style="position:fixed;right:0;top:0;height:100vh;pointer-events:none;z-index:1;overflow:hidden;opacity:0.13;">
+  <svg xmlns="http://www.w3.org/2000/svg"
+       style="display:block;height:100vh;width:auto;"
+       viewBox="0 0 54 142"
+       preserveAspectRatio="xMaxYMin meet">
+    <!--
+      Metà DESTRA della casa (come nella seconda immagine).
+      In coordinate "casa intera" (W=100, H=142):
+        Apice:            (50,  0)
+        Spalla destra:    (98, 56)
+        Angolo basso-dx:  (98,136)
+        Angolo basso-cx:  (50,136)   ← taglio verticale
+      Finestra (lato destro):
+        top-cx→dx:   (50,75)→(26,75)   wait...
+
+      Rifacciamo con assi relativi: questa SVG mostra la METÀ DESTRA.
+      Il taglio è a sinistra (x=0 del viewBox = x=50 della casa intera).
+      Quindi mappo: x_svg = x_casa - 50
+
+        Apice            → (50-50, 0)    = (0,   0)   [bordo sinistro, cima]
+        Spalla destra    → (98-50, 56)   = (48,  56)
+        Angolo basso-dx  → (98-50, 136)  = (48, 136)
+        Angolo basso-cx  → (50-50, 136)  = (0,  136)
+
+      Finestra originale: da x=27 a x=73, da y=74 a y=130
+      Porzione destra (x≥50): da x=50→0 a x=73→23
+        Lato sinistro finestra ≡ taglio, appare come linea a x=0
+        Lato destro:   (73-50, 74)→(73-50,130) = (23,74)→(23,130)
+        Top (da taglio a dx):  (0,74)→(23,74)
+        Bottom (da taglio a dx): (0,130)→(23,130)
+    -->
+
+    <!-- Profilo esterno (metà destra): apice → spalla dx → angolo dx → base taglio -->
+    <polyline
+      points="1,1 48,56 48,136 1,136"
+      fill="none"
+      stroke="#F5C118"
+      stroke-width="5.5"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+    />
+    <!-- Finestra (metà destra): dal taglio verso il lato destro -->
+    <polyline
+      points="1,74 23,74 23,130 1,130"
+      fill="none"
+      stroke="#F5C118"
+      stroke-width="4.5"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+    />
+  </svg>
+</div>
+
+</body>
+</html>
